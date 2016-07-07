@@ -23,10 +23,16 @@ endif()
 
 # Directories
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(EXTERNALS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/externals)
+
+# sfzCore
+set(SFZ_CORE_OPENGL TRUE)
+add_subdirectory(${EXTERNALS_DIR}/sfzCore)
 
 # Include directories
 include_directories(
 	${SOURCE_DIR}
+	${SFZ_CORE_INCLUDE_DIRS}
 )
 
 set(SOURCE_ROOT_FILES
@@ -39,3 +45,26 @@ set(SOURCE_ALL_FILES
 # Main executable
 add_executable(VR-Experimentation ${SOURCE_ALL_FILES})
 
+# Linking libraries to main executable
+target_link_libraries(
+	VR-Experimentation
+
+	${SFZ_CORE_LIBRARIES}
+)
+
+# MSVC specific file copying
+if(MSVC)
+	# Create assets symlinks batch file
+	file(COPY RuntimeDLLs/CREATE_ASSETS_SYMLINKS.BAT DESTINATION ${CMAKE_BINARY_DIR})
+
+	# Runtime DLLs
+	file(COPY RuntimeDLLs/SDL2.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+	file(COPY RuntimeDLLs/SDL2_mixer.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+
+	file(COPY RuntimeDLLs/SDL2.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
+	file(COPY RuntimeDLLs/SDL2_mixer.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
+
+else()
+	# Create assets symlinks bash script (for non windows platforms)
+	file(COPY RuntimeDLLs/CREATE_ASSETS_SYMLINKS.SH DESTINATION ${CMAKE_BINARY_DIR})
+endif()
