@@ -36,6 +36,8 @@ include_directories(
 )
 
 set(SOURCE_ROOT_FILES
+	${SOURCE_DIR}/GameScreen.hpp
+	${SOURCE_DIR}/GameScreen.cpp
 	${SOURCE_DIR}/Main.cpp)
 source_group(root FILES ${SOURCE_ROOT_FILES})
 
@@ -43,11 +45,11 @@ set(SOURCE_ALL_FILES
 	${SOURCE_ROOT_FILES})
 
 # Main executable
-add_executable(VR-Experimentation ${SOURCE_ALL_FILES})
+add_executable(VRExperimentation ${SOURCE_ALL_FILES})
 
 # Linking libraries to main executable
 target_link_libraries(
-	VR-Experimentation
+	VRExperimentation
 
 	${SFZ_CORE_LIBRARIES}
 )
