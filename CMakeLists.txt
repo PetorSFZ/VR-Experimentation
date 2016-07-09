@@ -29,10 +29,14 @@ set(EXTERNALS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/externals)
 set(SFZ_CORE_OPENGL TRUE)
 add_subdirectory(${EXTERNALS_DIR}/sfzCore)
 
+# OpenVR (${OPENVR_INCLUDE_DIRS}, ${OPENVR_LIBRARIES}, ${OPENVR_DLL_PATH})
+add_subdirectory(${EXTERNALS_DIR}/OpenVR)
+
 # Include directories
 include_directories(
 	${SOURCE_DIR}
 	${SFZ_CORE_INCLUDE_DIRS}
+	${OPENVR_INCLUDE_DIRS}
 )
 
 set(SOURCE_ROOT_FILES
@@ -52,6 +56,7 @@ target_link_libraries(
 	VRExperimentation
 
 	${SFZ_CORE_LIBRARIES}
+	${OPENVR_LIBRARIES}
 )
 
 # MSVC specific file copying
@@ -62,9 +67,11 @@ if(MSVC)
 	# Runtime DLLs
 	file(COPY RuntimeDLLs/SDL2.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
 	file(COPY RuntimeDLLs/SDL2_mixer.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+	file(COPY ${OPENVR_DLL_PATH} DESTINATION ${CMAKE_BINARY_DIR}/Debug)
 
 	file(COPY RuntimeDLLs/SDL2.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
 	file(COPY RuntimeDLLs/SDL2_mixer.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
+	file(COPY ${OPENVR_DLL_PATH} DESTINATION ${CMAKE_BINARY_DIR}/Release)
 
 else()
 	# Create assets symlinks bash script (for non windows platforms)
