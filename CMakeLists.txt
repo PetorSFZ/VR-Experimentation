@@ -32,11 +32,15 @@ add_subdirectory(${EXTERNALS_DIR}/sfzCore)
 # OpenVR (${OPENVR_INCLUDE_DIRS}, ${OPENVR_LIBRARIES}, ${OPENVR_DLL_PATH})
 add_subdirectory(${EXTERNALS_DIR}/OpenVR)
 
+# tinyobjloader
+add_subdirectory(${EXTERNALS_DIR}/tinyobjloader)
+
 # Include directories
 include_directories(
 	${SOURCE_DIR}
 	${SFZ_CORE_INCLUDE_DIRS}
 	${OPENVR_INCLUDE_DIRS}
+	${TINYOBJLOADER_INCLUDE_DIRS}
 )
 
 set(SOURCE_ROOT_FILES
@@ -57,6 +61,7 @@ target_link_libraries(
 
 	${SFZ_CORE_LIBRARIES}
 	${OPENVR_LIBRARIES}
+	${TINYOBJLOADER_LIBRARIES}
 )
 
 # MSVC specific file copying
