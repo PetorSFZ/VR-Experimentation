@@ -46,7 +46,9 @@ include_directories(
 set(SOURCE_ROOT_FILES
 	${SOURCE_DIR}/GameScreen.hpp
 	${SOURCE_DIR}/GameScreen.cpp
-	${SOURCE_DIR}/Main.cpp)
+	${SOURCE_DIR}/Main.cpp
+	${SOURCE_DIR}/SimpleModel.hpp
+	${SOURCE_DIR}/SimpleModel.cpp)
 source_group(root FILES ${SOURCE_ROOT_FILES})
 
 set(SOURCE_ALL_FILES

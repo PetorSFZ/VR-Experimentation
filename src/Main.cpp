@@ -1,5 +1,7 @@
 #include "GameScreen.hpp"
 
+#include <openvr.h>
+
 #include "sfz/GL.hpp"
 #include "sfz/gl/IncludeOpenGL.hpp"
 #include "sfz/Screens.hpp"
@@ -54,7 +56,33 @@ int main(int argc, char* argv[])
 	gl::setupDebugMessages(gl::Severity::MEDIUM, gl::Severity::MEDIUM);
 #endif
 
-	sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>()));
+
+	// New experimental OpenVR stuff
+
+	// Check if HMD is present
+	/*if (vr::VR_IsHmdPresent()) {
+		printf("HMD present\n");
+	} else {
+		printf("HMD NOT present\n");
+		return 0;
+	}
+
+	// Load SteamVR Runtime
+	vr::EVRInitError vrInitError = vr::VRInitError_None;
+	vr::IVRSystem* vrSystem = vr::VR_Init(&vrInitError, vr::VRApplication_Scene);
+	// TODO: Check vrInitError
+
+	// Try to init compositor?
+	if (!vr::VRCompositor()) {
+		printf("Compositor initialization failed\n");
+		return 0;
+	}*/
+
+	//sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(vrSystem)));
+	sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(nullptr)));
+
+	// Clean up OpenVR
+	//vr::VR_Shutdown();
 
 	return 0;
 }
