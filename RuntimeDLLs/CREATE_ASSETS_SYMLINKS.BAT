@@ -25,9 +25,7 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------
 
-cd bin
-mklink /D assets\ ..\..\assets
-cd ..\Debug
+cd Debug
 mklink /D assets\ ..\..\assets
 cd ..\Release
 mklink /D assets\ ..\..\assets
