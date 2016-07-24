@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
 	// New experimental OpenVR stuff
 
 	// Check if HMD is present
-	/*if (vr::VR_IsHmdPresent()) {
+	if (vr::VR_IsHmdPresent()) {
 		printf("HMD present\n");
 	} else {
 		printf("HMD NOT present\n");
@@ -68,21 +68,33 @@ int main(int argc, char* argv[])
 	}
 
 	// Load SteamVR Runtime
-	vr::EVRInitError vrInitError = vr::VRInitError_None;
-	vr::IVRSystem* vrSystem = vr::VR_Init(&vrInitError, vr::VRApplication_Scene);
-	// TODO: Check vrInitError
+	vr::EVRInitError vrError = vr::VRInitError_None;
+	vr::IVRSystem* vrSystem = vr::VR_Init(&vrError, vr::VRApplication_Scene);
+	if (vrError != vr::VRInitError_None) {
+		printf("Failed to initialize VR runtime: %s\n", vr::VR_GetVRInitErrorAsEnglishDescription(vrError));
+		system("pause");
+		return 0;
+	}
+
+	vr::IVRRenderModels* renderModels = (vr::IVRRenderModels*) vr::VR_GetGenericInterface(vr::IVRRenderModels_Version, &vrError);
+	if (!renderModels) {
+		vr::VR_Shutdown();
+		printf("unable to get render model interface: %s\n", vr::VR_GetVRInitErrorAsEnglishDescription(vrError));
+		system("pause");
+		return 0;
+	}
 
 	// Try to init compositor?
 	if (!vr::VRCompositor()) {
 		printf("Compositor initialization failed\n");
 		return 0;
-	}*/
+	}
 
-	//sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(vrSystem)));
-	sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(nullptr)));
+	sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(vrSystem)));
+	//sfz::runGameLoop(window, SharedPtr<BaseScreen>(sfz_new<vre::GameScreen>(nullptr)));
 
 	// Clean up OpenVR
-	//vr::VR_Shutdown();
+	vr::VR_Shutdown();
 
 	return 0;
 }

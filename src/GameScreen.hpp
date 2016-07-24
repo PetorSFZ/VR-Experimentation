@@ -48,6 +48,10 @@ private:
 	// Private members
 	// --------------------------------------------------------------------------------------------
 
+	const size_t LEFT_EYE = 0;
+	const size_t RIGHT_EYE = 1;
+
+	Framebuffer mFinalFB[2];
 	Program mSimpleShader;
 	SimpleModel mSphereModel;
 	sfz::ViewFrustum mCam;
