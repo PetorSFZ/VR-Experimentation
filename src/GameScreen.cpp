@@ -35,10 +35,20 @@ GameScreen::GameScreen(vr::IVRSystem* vrSystem) noexcept
 		// Uniforms
 		uniform sampler2D uLeftEyeTex;
 		uniform sampler2D uRightEyeTex;
+		uniform vec2 uWindowRes;
+		uniform vec2 uEyeRes;
 
 		void main()
 		{
-			outFragColor = texture(uLeftEyeTex, uvCoord);
+			vec2 pixelCoord = uvCoord * uWindowRes;
+			float halfWidth = uWindowRes.x * 0.5;
+			if (pixelCoord.x < halfWidth) {
+				vec2 coord = pixelCoord / halfWidth;
+				outFragColor = texture(uLeftEyeTex, coord);
+			} else {
+				vec2 coord = vec2(pixelCoord.x - halfWidth, pixelCoord.y) / halfWidth;
+				outFragColor = texture(uRightEyeTex, coord);
+			}
 		}
 	)");
 
@@ -71,13 +81,21 @@ void GameScreen::render(UpdateState& state)
 	using namespace sfz;
 
 	// Update framebuffer sizes
-	vec2i fbRes = state.window.drawableDimensions();
+	vec2i fbRes = ovr::getRecommendedRenderTargetSize(mVRSystem);
 	if (mFinalFB[ovr::EYE_LEFT].dimensions() != fbRes) {
 		FramebufferBuilder builder = FramebufferBuilder(fbRes)
 		                            .addDepthTexture(FBDepthFormat::F32)
 		                            .addTexture(0, FBTextureFormat::RGB_U8, FBTextureFiltering::LINEAR);
 		mFinalFB[ovr::EYE_LEFT] = builder.build();
 		mFinalFB[ovr::EYE_RIGHT] = builder.build();
+
+		printf("Created framebuffers\nWindow: %s\nEye buffers: %s\n\n",
+		       toString(state.window.drawableDimensions()).str,
+		       toString(fbRes).str);
+
+		mScalingShader.useProgram();
+		setUniform(mScalingShader, "uWindowRes", state.window.drawableDimensionsFloat());
+		setUniform(mScalingShader, "uEyeRes", vec2(fbRes));
 	}
 
 	/*const mat4 projMatrix = mCam.projMatrix();
@@ -104,7 +122,7 @@ void GameScreen::render(UpdateState& state)
 
 	// Render to both eyes
 	{
-		glUseProgram(mSimpleShader.handle());
+		mSimpleShader.useProgram();
 
 		for (uint32_t eye : ovr::eyes) {
 			const mat4 projMatrix = ovr::getProjectionMatrix(mVRSystem, eye, 0.01f, 100.0f);
@@ -131,7 +149,7 @@ void GameScreen::render(UpdateState& state)
 		glClearDepth(1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		glUseProgram(mScalingShader.handle());
+		mScalingShader.useProgram();
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, mFinalFB[ovr::EYE_LEFT].texture(0));
@@ -170,33 +188,6 @@ void GameScreen::render(UpdateState& state)
 		rightEyeTexBounds.vMax = 1.0f;
 		vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTex, &rightEyeTexBounds);
 	
-		// Scale left framebuffer to window
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, state.window.width(), state.window.height());
-		//glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//mScaler.scale(0, state.window.drawableDimensionsFloat(), mFinalFB[LEFT_EYE].texture(0), mFinalFB[LEFT_EYE].dimensionsFloat());
-
-		//$ HACKHACK. From gpuview profiling, it looks like there is a bug where two renders and a present
-		// happen right before and after the vsync causing all kinds of jittering issues. This glFinish()
-		// appears to clear that up. Temporary fix while I try to get nvidia to investigate this problem.
-		// 1/29/2014 mikesart
-		glFinish();
-
-		SDL_GL_SwapWindow(state.window.ptr());
-
-		// We want to make sure the glFinish waits for the entire present to complete, not just the submission
-		// of the command. So, we do a clear here right here so the glFinish will wait fully for the swap.
-		//glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// Flush and wait for swap.
-		glFlush();
-		glFinish();
-
-		/*// Signal driver to start processing
-		//glFlush();
-
 		//$ HACKHACK. From gpuview profiling, it looks like there is a bug where two renders and a present
 		// happen right before and after the vsync causing all kinds of jittering issues. This glFinish()
 		// appears to clear that up. Temporary fix while I try to get nvidia to investigate this problem.
@@ -212,67 +203,8 @@ void GameScreen::render(UpdateState& state)
 
 		// Flush and wait for swap.
 		glFlush();
-		glFinish();*/
-	}
-
-
-	//SDL_GL_SwapWindow(state.window.ptr());
-
-	/*  OpenVR sample
-
-	// for now as fast as possible
-	if ( m_pHMD )
-	{
-		DrawControllers();
-		RenderStereoTargets();
-		RenderDistortion();
-
-		vr::Texture_t leftEyeTexture = {(void*)leftEyeDesc.m_nResolveTextureId, vr::API_OpenGL, vr::ColorSpace_Gamma };
-		vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture );
-		vr::Texture_t rightEyeTexture = {(void*)rightEyeDesc.m_nResolveTextureId, vr::API_OpenGL, vr::ColorSpace_Gamma };
-		vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture );
-	}
-
-	if ( m_bVblank && m_bGlFinishHack )
-	{
-		//$ HACKHACK. From gpuview profiling, it looks like there is a bug where two renders and a present
-		// happen right before and after the vsync causing all kinds of jittering issues. This glFinish()
-		// appears to clear that up. Temporary fix while I try to get nvidia to investigate this problem.
-		// 1/29/2014 mikesart
 		glFinish();
 	}
-
-	// SwapWindow
-	{
-		SDL_GL_SwapWindow( m_pWindow );
-	}
-
-	// Clear
-	{
-		// We want to make sure the glFinish waits for the entire present to complete, not just the submission
-		// of the command. So, we do a clear here right here so the glFinish will wait fully for the swap.
-		glClearColor( 0, 0, 0, 1 );
-		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-	}
-
-	// Flush and wait for swap.
-	if ( m_bVblank )
-	{
-		glFlush();
-		glFinish();
-	}
-
-	// Spew out the controller and pose count whenever they change.
-	if ( m_iTrackedControllerCount != m_iTrackedControllerCount_Last || m_iValidPoseCount != m_iValidPoseCount_Last )
-	{
-		m_iValidPoseCount_Last = m_iValidPoseCount;
-		m_iTrackedControllerCount_Last = m_iTrackedControllerCount;
-		
-		dprintf( "PoseCount:%d(%s) Controllers:%d\n", m_iValidPoseCount, m_strPoseClasses.c_str(), m_iTrackedControllerCount );
-	}
-
-	UpdateHMDMatrixPose();
-	*/
 }
 
 void GameScreen::onQuit()

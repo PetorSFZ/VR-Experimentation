@@ -60,5 +60,15 @@ mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float near, floa
 	return convertSteamVRMatrix(mat);
 }
 
+// Other
+// ------------------------------------------------------------------------------------------------
+
+vec2i getRecommendedRenderTargetSize(vr::IVRSystem* vrSystem) noexcept
+{
+	uint32_t w = 0, h = 0;
+	vrSystem->GetRecommendedRenderTargetSize(&w, &h);
+	return vec2i(int32_t(w), int32_t(h));
+}
+
 } // namespace ovr
 } // namespace sfz

@@ -25,5 +25,10 @@ mat4 getHeadMatrix(uint32_t eye) noexcept;
 mat4 getEyeMatrix(vr::IVRSystem* vrSystem, uint32_t eye) noexcept;
 mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float near, float far) noexcept;
 
+// Other
+// ------------------------------------------------------------------------------------------------
+
+vec2i getRecommendedRenderTargetSize(vr::IVRSystem* vrSystem) noexcept;
+
 } // namespace ovr
 } // namespace sfz
