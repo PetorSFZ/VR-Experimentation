@@ -140,12 +140,6 @@ void GameScreen::render(UpdateState& state)
 		setUniform(mScalingShader, "uWindowRes", state.window.drawableDimensionsFloat());
 		setUniform(mScalingShader, "uEyeRes", vec2(fbRes));
 	}
-
-	/*const mat4 projMatrix = mCam.projMatrix();
-	const mat4 viewMatrix = mCam.viewMatrix();
-	const mat4 invProjMatrix = inverse(projMatrix);
-	const mat4 invViewMatrix = inverse(viewMatrix);*/
-
 	// Update head position
 	mat4 headMatrix = sfz::identityMatrix4<float>();
 	{
@@ -158,7 +152,7 @@ void GameScreen::render(UpdateState& state)
 			if (!trackedDevicePoses[device].bPoseIsValid) continue;
 			if (mVRSystem->GetTrackedDeviceClass(device) != vr::TrackedDeviceClass_HMD) continue;
 			
-			headMatrix = transpose(ovr::convertSteamVRMatrix(trackedDevicePoses[device].mDeviceToAbsoluteTracking));
+			headMatrix = inverse(ovr::convertSteamVRMatrix(trackedDevicePoses[device].mDeviceToAbsoluteTracking));
 			break;
 		}
 	}
