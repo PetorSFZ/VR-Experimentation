@@ -37,17 +37,60 @@ GameScreen::GameScreen(vr::IVRSystem* vrSystem) noexcept
 		uniform sampler2D uRightEyeTex;
 		uniform vec2 uWindowRes;
 		uniform vec2 uEyeRes;
+		uniform vec4 uUnusedColor = vec4(0.0, 0.0, 1.0, 1.0);
+		uniform int uMode = 1; // 0 == render only left eye, 1 == render both eyes
 
 		void main()
 		{
-			vec2 pixelCoord = uvCoord * uWindowRes;
-			float halfWidth = uWindowRes.x * 0.5;
-			if (pixelCoord.x < halfWidth) {
-				vec2 coord = pixelCoord / halfWidth;
-				outFragColor = texture(uLeftEyeTex, coord);
-			} else {
-				vec2 coord = vec2(pixelCoord.x - halfWidth, pixelCoord.y) / halfWidth;
-				outFragColor = texture(uRightEyeTex, coord);
+			outFragColor = uUnusedColor;
+
+			if (uMode == 0) {
+				float windowAspect = uWindowRes.x / uWindowRes.y;
+				float eyeAspect = uEyeRes.x / uEyeRes.y;
+
+				// Window is wider than eye texture
+				if (windowAspect >= eyeAspect) {
+					vec2 scale = uWindowRes * uEyeRes.y / (uWindowRes.y * uEyeRes);
+					vec2 offs = -vec2(max((scale.x - 1.0) * 0.5, 0.0), 0.0);
+					vec2 coord = uvCoord * scale + offs;
+					if (0.0 <= coord.x && coord.x <= 1.0) {
+						outFragColor = texture(uLeftEyeTex, coord);
+					}
+				}
+				// Eye texture is wider than window
+				else {
+					vec2 scale = uWindowRes * uEyeRes.x / (uWindowRes.x * uEyeRes);
+					vec2 offs = -vec2(0.0, max((scale.y - 1.0) * 0.5, 0.0));
+					vec2 coord = uvCoord * scale + offs;
+					if (0.0 <= coord.y && coord.y <= 1.0) {
+						outFragColor = texture(uLeftEyeTex, coord);
+					}
+				}
+			}
+			else {
+				vec2 eyeRes = vec2(uEyeRes.x * 2.0, uEyeRes.y);
+
+				float windowAspect = uWindowRes.x / uWindowRes.y;
+				float eyeAspect = eyeRes.x / eyeRes.y;
+
+				// Window is wider than eye texture
+				if (windowAspect >= eyeAspect) {
+					vec2 scale = uWindowRes * eyeRes.y / (uWindowRes.y * eyeRes);
+					vec2 offs = -vec2(max((scale.x - 1.0) * 0.5, 0.0), 0.0);
+					vec2 coord = uvCoord * scale + offs;
+					if (0.0 <= coord.x && coord.x <= 1.0) {
+						outFragColor = texture(coord.x < 0.5 ? uLeftEyeTex : uRightEyeTex, coord);
+					}
+				}
+				// Eye texture is wider than window
+				else {
+					vec2 scale = uWindowRes * eyeRes.x / (uWindowRes.x * eyeRes);
+					vec2 offs = -vec2(0.0, max((scale.y - 1.0) * 0.5, 0.0));
+					vec2 coord = uvCoord * scale + offs;
+					if (0.0 <= coord.y && coord.y <= 1.0) {
+						outFragColor = texture(coord.x < 0.5 ? uLeftEyeTex : uRightEyeTex, coord);
+					}
+				}
 			}
 		}
 	)");
@@ -214,7 +257,8 @@ void GameScreen::onQuit()
 
 void GameScreen::onResize(vec2 dimensions, vec2 drawableDimensions)
 {
-
+	mScalingShader.useProgram();
+	setUniform(mScalingShader, "uWindowRes", drawableDimensions);
 }
 
 } // namespace vre
