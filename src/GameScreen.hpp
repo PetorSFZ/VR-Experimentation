@@ -6,12 +6,13 @@
 
 #include "sfz/gl/Program.hpp"
 #include "sfz/gl/Framebuffer.hpp"
+#include "sfz/gl/FullscreenQuad.hpp"
 
 #include "sfz/geometry/ViewFrustum.hpp"
 
-#include <openvr.h>
-
 #include "SimpleModel.hpp"
+
+#include "VR.hpp"
 
 namespace vre {
 
@@ -20,6 +21,7 @@ using sfz::gl::FramebufferBuilder;
 using sfz::gl::FBDepthFormat;
 using sfz::gl::FBTextureFiltering;
 using sfz::gl::FBTextureFormat;
+using sfz::gl::FullscreenQuad;
 using sfz::gl::Program;
 using sfz::sdl::Window;
 using sfz::UpdateOp;
@@ -48,11 +50,9 @@ private:
 	// Private members
 	// --------------------------------------------------------------------------------------------
 
-	const size_t LEFT_EYE = 0;
-	const size_t RIGHT_EYE = 1;
-
 	Framebuffer mFinalFB[2];
-	Program mSimpleShader;
+	Program mSimpleShader, mScalingShader;
+	FullscreenQuad mQuad;
 	SimpleModel mSphereModel;
 	sfz::ViewFrustum mCam;
 
