@@ -10,9 +10,7 @@ namespace vre {
 // GameScreen: Constructors & destructors
 // ------------------------------------------------------------------------------------------------
 
-GameScreen::GameScreen(vr::IVRSystem* vrSystem) noexcept
-:
-	mVRSystem(vrSystem)
+GameScreen::GameScreen() noexcept
 {
 	sfz::StackString128 modelsPath;
 	modelsPath.printf("%sassets/models/", sfz::basePath());
@@ -123,14 +121,19 @@ void GameScreen::render(UpdateState& state)
 {
 	using namespace sfz;
 
-	// Update framebuffer sizes
-	vec2i fbRes = ovr::getRecommendedRenderTargetSize(mVRSystem);
-	if (mFinalFB[ovr::EYE_LEFT].dimensions() != fbRes) {
+	// Grab vr instance and update it
+	VR& vr = VR::instance();
+	vr.update();
+	const HMD& hmd = vr.hmd();
+
+	// Check if framebuffers need to be resized
+	vec2i fbRes = vr.getRecommendedRenderTargetSize();
+	if (mFinalFB[LEFT_EYE].dimensions() != fbRes) {
 		FramebufferBuilder builder = FramebufferBuilder(fbRes)
 		                            .addDepthTexture(FBDepthFormat::F32)
 		                            .addTexture(0, FBTextureFormat::RGB_U8, FBTextureFiltering::LINEAR);
-		mFinalFB[ovr::EYE_LEFT] = builder.build();
-		mFinalFB[ovr::EYE_RIGHT] = builder.build();
+		mFinalFB[LEFT_EYE] = builder.build();
+		mFinalFB[RIGHT_EYE] = builder.build();
 
 		printf("Created framebuffers\nWindow: %s\nEye buffers: %s\n\n",
 		       toString(state.window.drawableDimensions()).str,
@@ -140,34 +143,16 @@ void GameScreen::render(UpdateState& state)
 		setUniform(mScalingShader, "uWindowRes", state.window.drawableDimensionsFloat());
 		setUniform(mScalingShader, "uEyeRes", vec2(fbRes));
 	}
-	// Update head position
-	mat4 headMatrix = sfz::identityMatrix4<float>();
-	{
-		vr::TrackedDevicePose_t trackedDevicePoses[vr::k_unMaxTrackedDeviceCount];
-		char deviceChar[vr::k_unMaxTrackedDeviceCount] = {};
-
-		vr::VRCompositor()->WaitGetPoses(trackedDevicePoses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
-
-		for (int device = 0; device < 16; device++) {
-			if (!trackedDevicePoses[device].bPoseIsValid) continue;
-			if (mVRSystem->GetTrackedDeviceClass(device) != vr::TrackedDeviceClass_HMD) continue;
-			
-			headMatrix = inverse(ovr::convertSteamVRMatrix(trackedDevicePoses[device].mDeviceToAbsoluteTracking));
-			break;
-		}
-	}
 
 	// Render to both eyes
 	{
 		mSimpleShader.useProgram();
 
-		for (uint32_t eye : ovr::eyes) {
-			const mat4 projMatrix = ovr::getProjectionMatrix(mVRSystem, eye, 0.01f, 100.0f);
-			const mat4 eyeMatrix = ovr::getEyeMatrix(mVRSystem, eye);
-			const mat4 viewMatrix = eyeMatrix * headMatrix;
+		for (uint32_t eye : VR_EYES) {
+			const mat4 viewMatrix = hmd.eyeMatrix[eye] * hmd.headMatrix * hmd.originMatrix;
 			const mat4 modelMatrix = identityMatrix4<float>();
 
-			gl::setUniform(mSimpleShader, "uProjMatrix", projMatrix);
+			gl::setUniform(mSimpleShader, "uProjMatrix", hmd.projMatrix[eye]);
 			gl::setUniform(mSimpleShader, "uViewMatrix", viewMatrix);
 			gl::setUniform(mSimpleShader, "uModelMatrix", modelMatrix);
 			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * modelMatrix))); // inverse(tranpose(modelViewMatrix))*/
@@ -178,7 +163,7 @@ void GameScreen::render(UpdateState& state)
 		}
 	}
 
-	// Scale left eye to window
+	// Copy both eye textures to window
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, state.window.drawableWidth(), state.window.drawableHeight());
@@ -189,59 +174,18 @@ void GameScreen::render(UpdateState& state)
 		mScalingShader.useProgram();
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, mFinalFB[ovr::EYE_LEFT].texture(0));
+		glBindTexture(GL_TEXTURE_2D, mFinalFB[LEFT_EYE].texture(0));
 		gl::setUniform(mScalingShader, "uLeftEyeTex", 0);
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, mFinalFB[ovr::EYE_RIGHT].texture(0));
+		glBindTexture(GL_TEXTURE_2D, mFinalFB[RIGHT_EYE].texture(0));
 		gl::setUniform(mScalingShader, "uRightEyeTex", 1);
 
 		mQuad.render();
 	}
 
-	// Submit framebuffers to Vive
-	{
-		// Submit left framebuffer
-		vr::Texture_t leftEyeTex;
-		leftEyeTex.handle = (void*)mFinalFB[ovr::EYE_LEFT].texture(0);
-		leftEyeTex.eType = vr::API_OpenGL;
-		leftEyeTex.eColorSpace = vr::ColorSpace::ColorSpace_Linear; // TODO: Change to gamma?
-		vr::VRTextureBounds_t leftEyeTexBounds;
-		leftEyeTexBounds.uMin = 0.0f;
-		leftEyeTexBounds.vMin = 0.0f;
-		leftEyeTexBounds.uMax = 1.0f;
-		leftEyeTexBounds.vMax = 1.0f;
-		vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTex, &leftEyeTexBounds);
-
-		// Submit right framebuffer
-		vr::Texture_t rightEyeTex;
-		rightEyeTex.handle = (void*)mFinalFB[ovr::EYE_RIGHT].texture(0);
-		rightEyeTex.eType = vr::API_OpenGL;
-		rightEyeTex.eColorSpace = vr::ColorSpace::ColorSpace_Linear; // TODO: Change to gamma?
-		vr::VRTextureBounds_t rightEyeTexBounds;
-		rightEyeTexBounds.uMin = 0.0f;
-		rightEyeTexBounds.vMin = 0.0f;
-		rightEyeTexBounds.uMax = 1.0f;
-		rightEyeTexBounds.vMax = 1.0f;
-		vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTex, &rightEyeTexBounds);
-	
-		//$ HACKHACK. From gpuview profiling, it looks like there is a bug where two renders and a present
-		// happen right before and after the vsync causing all kinds of jittering issues. This glFinish()
-		// appears to clear that up. Temporary fix while I try to get nvidia to investigate this problem.
-		// 1/29/2014 mikesart
-		glFinish();
-
-		SDL_GL_SwapWindow(state.window.ptr());
-
-		// We want to make sure the glFinish waits for the entire present to complete, not just the submission
-		// of the command. So, we do a clear here right here so the glFinish will wait fully for the swap.
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// Flush and wait for swap.
-		glFlush();
-		glFinish();
-	}
+	// Submit framebuffers to Vive and swap
+	vr.submitAndSwap(state.window.ptr(), mFinalFB[LEFT_EYE].texture(0), mFinalFB[RIGHT_EYE].texture(0));
 }
 
 void GameScreen::onQuit()

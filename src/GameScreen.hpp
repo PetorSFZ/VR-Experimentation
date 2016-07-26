@@ -36,7 +36,7 @@ public:
 	// Constructors & destructors
 	// --------------------------------------------------------------------------------------------
 
-	GameScreen(vr::IVRSystem* vrSystem) noexcept;
+	GameScreen() noexcept;
 
 	// Overriden methods from sfz::BaseScreen
 	// --------------------------------------------------------------------------------------------
@@ -55,8 +55,6 @@ private:
 	FullscreenQuad mQuad;
 	SimpleModel mSphereModel;
 	sfz::ViewFrustum mCam;
-
-	vr::IVRSystem* mVRSystem = nullptr;
 };
 
 } // namespace vre
