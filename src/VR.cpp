@@ -6,6 +6,7 @@
 #include <SDL.h>
 
 #include "sfz/Assert.hpp"
+#include "sfz/containers/DynString.hpp"
 #include "sfz/gl/IncludeOpenGL.hpp"
 
 namespace sfz {
@@ -53,6 +54,23 @@ static mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float nea
 {
 	vr::HmdMatrix44_t mat = vrSystem->GetProjectionMatrix(vr::EVREye(eye), near, far, vr::API_OpenGL);
 	return convertSteamVRMatrix(mat);
+}
+
+// ControllerModel
+// ------------------------------------------------------------------------------------------------
+
+ControllerModel::~ControllerModel() noexcept
+{
+	glDeleteBuffers(1, &glVertexBuffer);
+	glDeleteBuffers(1, &glIndexBuffer);
+	glDeleteVertexArrays(1, &glVAO);
+	glDeleteTextures(1, &glTexture);
+}
+
+void ControllerModel::draw() const noexcept
+{
+	glBindVertexArray(glVAO);
+	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_SHORT, 0);
 }
 
 // VR: Singleton instance
@@ -103,6 +121,38 @@ bool VR::initialize() noexcept
 		printErrorMessage("VR: Failed to initialize compositor.");
 		return false;
 	}
+
+	// Loading models for controllers
+	int controllerCount = 0;
+	for (uint32_t device = 0; device < vr::k_unMaxTrackedDeviceCount; device++) {
+		if (!system->IsTrackedDeviceConnected(device)) continue;
+		if (system->GetTrackedDeviceClass(device) != vr::TrackedDeviceClass_Controller) continue;
+
+		// Retrieve name of device
+		uint32_t nameLen = system->GetStringTrackedDeviceProperty(device, vr::Prop_RenderModelName_String, NULL, 0);
+		mTempStrBuffer.ensureCapacity(nameLen + 1);
+		mTempStrBuffer.setSize(nameLen + 1);
+		system->GetStringTrackedDeviceProperty(device, vr::Prop_RenderModelName_String,
+		                                       mTempStrBuffer.data(), mTempStrBuffer.capacity());
+
+		// Load model
+		vr::RenderModel_t* modelPtr;
+		vr::EVRRenderModelError error;
+		while (true) {
+			error = vr::VRRenderModels()->LoadRenderModel_Async(mTempStrBuffer.data(), &modelPtr);
+			if (error != vr::VRRenderModelError_Loading) {
+				break;
+			}
+			SDL_Delay(1);
+		}
+
+
+		
+		//vr::TrackedDevice
+
+		//SetupRenderModelForTrackedDevice(unTrackedDevice);
+	}
+	
 
 	mSystemPtr = system;
 	return true;
@@ -204,9 +254,6 @@ void VR::submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEy
 	glFlush();
 	glFinish();
 }
-
-// VR: Getters
-// ------------------------------------------------------------------------------------------------
 
 vec2i VR::getRecommendedRenderTargetSize() noexcept
 {

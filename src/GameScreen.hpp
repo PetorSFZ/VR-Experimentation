@@ -4,13 +4,12 @@
 #include "sfz/Screens.hpp"
 #include "sfz/SDL.hpp"
 
+#include "sfz/geometry/ViewFrustum.hpp"
+
 #include "sfz/gl/Program.hpp"
 #include "sfz/gl/Framebuffer.hpp"
 #include "sfz/gl/FullscreenQuad.hpp"
-
-#include "sfz/geometry/ViewFrustum.hpp"
-
-#include "SimpleModel.hpp"
+#include "sfz/gl/Model.hpp"
 
 #include "VR.hpp"
 
@@ -22,6 +21,7 @@ using sfz::gl::FBDepthFormat;
 using sfz::gl::FBTextureFiltering;
 using sfz::gl::FBTextureFormat;
 using sfz::gl::FullscreenQuad;
+using sfz::gl::Model;
 using sfz::gl::Program;
 using sfz::sdl::Window;
 using sfz::UpdateOp;
@@ -53,7 +53,7 @@ private:
 	Framebuffer mFinalFB[2];
 	Program mSimpleShader, mScalingShader;
 	FullscreenQuad mQuad;
-	SimpleModel mSphereModel;
+	Model mSnakeModel;
 	sfz::ViewFrustum mCam;
 };
 

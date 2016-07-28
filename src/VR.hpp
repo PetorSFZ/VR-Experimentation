@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "sfz/containers/DynArray.hpp"
 #include "sfz/math/Matrix.hpp"
 #include "sfz/math/Vector.hpp"
 
@@ -14,7 +15,7 @@ constexpr uint32_t LEFT_EYE = 0;
 constexpr uint32_t RIGHT_EYE = 1;
 constexpr uint32_t VR_EYES[] = { LEFT_EYE, RIGHT_EYE };
 
-// Struct representing the Head Mounted Device
+// Head Mounted Device
 // ------------------------------------------------------------------------------------------------
 
 struct HMD final {
@@ -25,6 +26,38 @@ struct HMD final {
 	mat4 projMatrix[2] = { identityMatrix4<float>(), identityMatrix4<float>() };
 	inline vec3 originPos() const noexcept { return translation(originMatrix); }
 	inline vec3 headPos() const noexcept { return originPos() + translation(headMatrix); }
+};
+
+// Controllers
+// ------------------------------------------------------------------------------------------------
+
+struct Vertex {
+	vec3 pos, normal;
+	vec2 uv;
+};
+
+static_assert(sizeof(Vertex) == sizeof(float) * 8, "VR: Vertex is padded");
+
+class ControllerModel final {
+public:
+	ControllerModel() noexcept = default;
+	ControllerModel(ControllerModel&) = delete;
+	ControllerModel& operator= (ControllerModel&) = delete;
+	
+	~ControllerModel() noexcept;
+	void draw() const noexcept;
+
+	DynArray<Vertex> vertices;
+	DynArray<uint16_t> indices; // numTriangles = numIndices / 3
+	uint32_t glVertexBuffer = 0;
+	uint32_t glIndexBuffer = 0;
+	uint32_t glVAO = 0;
+	uint32_t glTexture = 0;
+};
+
+struct Controller final {
+	mat4 transform;
+	vec3 pos;
 };
 
 // VR manager class
@@ -63,6 +96,8 @@ public:
 	/// useful in order to implement dynamic resolution.
 	void submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
 	                   vec2 uvMax = vec2(1.0), bool gammaCorrect = false) noexcept;
+	
+	vec2i getRecommendedRenderTargetSize() noexcept;
 
 	// Getters
 	// --------------------------------------------------------------------------------------------
@@ -70,7 +105,10 @@ public:
 	inline bool isInitialized() const noexcept { return mSystemPtr != nullptr; }
 	inline const HMD& hmd() const noexcept { return mHMD; }
 	inline HMD& hmd() noexcept { return mHMD; }
-	vec2i getRecommendedRenderTargetSize() noexcept;
+
+	inline const Controller& controller(uint32_t eye) const noexcept { return mControllers[eye]; }
+	inline const ControllerModel& controllerModel(uint32_t eye) const noexcept
+	     { return mControllerModels[eye]; }
 
 private:
 	// Private constructors & destructors
@@ -89,6 +127,9 @@ private:
 
 	void* mSystemPtr = nullptr;
 	HMD mHMD;
+	Controller mControllers[2];
+	ControllerModel mControllerModels[2];
+	mutable DynArray<char> mTempStrBuffer;
 };
 
 } // namespace sfz

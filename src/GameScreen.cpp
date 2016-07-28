@@ -17,7 +17,7 @@ GameScreen::GameScreen() noexcept
 	sfz::StackString128 shadersPath;
 	shadersPath.printf("%sassets/shaders/", sfz::basePath());
 
-	mSphereModel = SimpleModel(modelsPath.str, "head_d2u_f2.obj");
+	mSnakeModel = sfz::gl::tinyObjLoadModel(modelsPath.str, "head_d2u_f2.obj");
 
 	mSimpleShader = Program::fromFile(shadersPath.str, "SimpleShader.vert", "SimpleShader.frag");
 
@@ -158,8 +158,8 @@ void GameScreen::render(UpdateState& state)
 			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * modelMatrix))); // inverse(tranpose(modelViewMatrix))*/
 			
 			mFinalFB[eye].bindViewportClearColorDepth();
-
-			mSphereModel.render();
+			
+			mSnakeModel.draw();
 		}
 	}
 

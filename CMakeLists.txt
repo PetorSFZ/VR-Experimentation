@@ -47,10 +47,10 @@ set(SOURCE_ROOT_FILES
 	${SOURCE_DIR}/GameScreen.hpp
 	${SOURCE_DIR}/GameScreen.cpp
 	${SOURCE_DIR}/Main.cpp
-	${SOURCE_DIR}/SimpleModel.hpp
-	${SOURCE_DIR}/SimpleModel.cpp
 	${SOURCE_DIR}/VR.hpp
-	${SOURCE_DIR}/VR.cpp)
+	${SOURCE_DIR}/VR.cpp
+	${SOURCE_DIR}/sfz/gl/Model.hpp
+	${SOURCE_DIR}/sfz/gl/Model.cpp)
 source_group(root FILES ${SOURCE_ROOT_FILES})
 
 set(SOURCE_ALL_FILES
