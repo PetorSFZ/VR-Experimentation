@@ -19,7 +19,12 @@ GameScreen::GameScreen() noexcept
 
 	mSnakeModel = sfz::gl::tinyObjLoadModel(modelsPath.str, "head_d2u_f2.obj");
 
-	mSimpleShader = Program::fromFile(shadersPath.str, "SimpleShader.vert", "SimpleShader.frag");
+	mSimpleShader = Program::fromFile(shadersPath.str, "SimpleShader.vert", "SimpleShader.frag",
+	[](uint32_t shaderProgram) {
+		glBindAttribLocation(shaderProgram, 0, "inPosition");
+		glBindAttribLocation(shaderProgram, 1, "inNormal");
+		glBindAttribLocation(shaderProgram, 2, "inUV");
+	});
 
 	mScalingShader = Program::postProcessFromSource(R"(
 		#version 330
@@ -113,6 +118,7 @@ UpdateOp GameScreen::update(UpdateState& state)
 		}
 	}
 
+	sfz::VR::instance().update();
 
 	return sfz::SCREEN_NO_OP;
 }
@@ -160,6 +166,16 @@ void GameScreen::render(UpdateState& state)
 			mFinalFB[eye].bindViewportClearColorDepth();
 			
 			mSnakeModel.draw();
+			
+			mat4 controllerTransform0 = vr.controller(0).transform;
+			gl::setUniform(mSimpleShader, "uModelMatrix", controllerTransform0);
+			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * controllerTransform0))); // inverse(tranpose(modelViewMatrix))*/
+			vr.controllerModel(0).draw();
+
+			mat4 controllerTransform1 = vr.controller(1).transform;
+			gl::setUniform(mSimpleShader, "uModelMatrix", controllerTransform1);
+			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * controllerTransform1))); // inverse(tranpose(modelViewMatrix))*/
+			vr.controllerModel(1).draw();
 		}
 	}
 

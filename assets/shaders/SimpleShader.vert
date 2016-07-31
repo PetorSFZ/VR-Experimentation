@@ -2,6 +2,7 @@
 
 in vec3 inPosition;
 in vec3 inNormal;
+in vec2 inUV;
 
 uniform mat4 uProjMatrix;
 uniform mat4 uViewMatrix;

@@ -3,10 +3,13 @@
 #pragma once
 
 #include "sfz/containers/DynArray.hpp"
+#include "sfz/gl/Model.hpp"
 #include "sfz/math/Matrix.hpp"
 #include "sfz/math/Vector.hpp"
 
 namespace sfz {
+
+using gl::Model;
 
 // Eye constants
 // ------------------------------------------------------------------------------------------------
@@ -31,33 +34,8 @@ struct HMD final {
 // Controllers
 // ------------------------------------------------------------------------------------------------
 
-struct Vertex {
-	vec3 pos, normal;
-	vec2 uv;
-};
-
-static_assert(sizeof(Vertex) == sizeof(float) * 8, "VR: Vertex is padded");
-
-class ControllerModel final {
-public:
-	ControllerModel() noexcept = default;
-	ControllerModel(ControllerModel&) = delete;
-	ControllerModel& operator= (ControllerModel&) = delete;
-	
-	~ControllerModel() noexcept;
-	void draw() const noexcept;
-
-	DynArray<Vertex> vertices;
-	DynArray<uint16_t> indices; // numTriangles = numIndices / 3
-	uint32_t glVertexBuffer = 0;
-	uint32_t glIndexBuffer = 0;
-	uint32_t glVAO = 0;
-	uint32_t glTexture = 0;
-};
-
 struct Controller final {
 	mat4 transform;
-	vec3 pos;
 };
 
 // VR manager class
@@ -107,8 +85,7 @@ public:
 	inline HMD& hmd() noexcept { return mHMD; }
 
 	inline const Controller& controller(uint32_t eye) const noexcept { return mControllers[eye]; }
-	inline const ControllerModel& controllerModel(uint32_t eye) const noexcept
-	     { return mControllerModels[eye]; }
+	inline const Model& controllerModel(uint32_t eye) const noexcept { return mControllerModels[eye]; }
 
 private:
 	// Private constructors & destructors
@@ -128,7 +105,7 @@ private:
 	void* mSystemPtr = nullptr;
 	HMD mHMD;
 	Controller mControllers[2];
-	ControllerModel mControllerModels[2];
+	Model mControllerModels[2];
 	mutable DynArray<char> mTempStrBuffer;
 };
 

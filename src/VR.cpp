@@ -56,21 +56,59 @@ static mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float nea
 	return convertSteamVRMatrix(mat);
 }
 
-// ControllerModel
-// ------------------------------------------------------------------------------------------------
-
-ControllerModel::~ControllerModel() noexcept
+static Model modelFromRenderModel(vr::RenderModel_t* renderModelPtr) noexcept
 {
-	glDeleteBuffers(1, &glVertexBuffer);
-	glDeleteBuffers(1, &glIndexBuffer);
-	glDeleteVertexArrays(1, &glVAO);
-	glDeleteTextures(1, &glTexture);
-}
+	using sfz::gl::Vertex;
+	Model tmp;
+	
+	// Copy over vertices
+	tmp.vertices = DynArray<Vertex>(renderModelPtr->unVertexCount, renderModelPtr->unVertexCount);
+	for (size_t i = 0; i < tmp.vertices.size(); i++) {
+		sfz::gl::Vertex vertTmp;
+		vertTmp.pos = vec3(renderModelPtr->rVertexData[i].vPosition.v);
+		vertTmp.normal = vec3(renderModelPtr->rVertexData[i].vNormal.v);
+		vertTmp.uv = vec2(renderModelPtr->rVertexData[i].rfTextureCoord);
+		tmp.vertices[i] = vertTmp;
+	}
 
-void ControllerModel::draw() const noexcept
-{
-	glBindVertexArray(glVAO);
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_SHORT, 0);
+	// Copy over indices
+	tmp.indices = DynArray<uint32_t>(renderModelPtr->unTriangleCount * 3, 0, renderModelPtr->unTriangleCount * 3);
+	for (size_t i = 0; i < tmp.indices.size(); i++) {
+		tmp.indices[i] = renderModelPtr->rIndexData[i];
+	}
+
+	// TODO: Copy texture
+	tmp.glColorTexture = renderModelPtr->diffuseTextureId;
+
+
+	// Create Vertex Array object
+	glGenVertexArrays(1, &tmp.glVAO);
+	glBindVertexArray(tmp.glVAO);
+
+	// Create and fill vertex buffer
+	glGenBuffers(1, &tmp.glVertexBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, tmp.glVertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, tmp.vertices.size() * sizeof(Vertex), tmp.vertices.data(), GL_STATIC_DRAW);
+
+	// Locate components in vertex buffer
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, pos));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+
+	// Create and fill index buffer
+	glGenBuffers(1, &tmp.glIndexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tmp.glIndexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * tmp.indices.size(), tmp.indices.data(), GL_STATIC_DRAW);
+
+	// Cleanup
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	return std::move(tmp);
 }
 
 // VR: Singleton instance
@@ -122,38 +160,6 @@ bool VR::initialize() noexcept
 		return false;
 	}
 
-	// Loading models for controllers
-	int controllerCount = 0;
-	for (uint32_t device = 0; device < vr::k_unMaxTrackedDeviceCount; device++) {
-		if (!system->IsTrackedDeviceConnected(device)) continue;
-		if (system->GetTrackedDeviceClass(device) != vr::TrackedDeviceClass_Controller) continue;
-
-		// Retrieve name of device
-		uint32_t nameLen = system->GetStringTrackedDeviceProperty(device, vr::Prop_RenderModelName_String, NULL, 0);
-		mTempStrBuffer.ensureCapacity(nameLen + 1);
-		mTempStrBuffer.setSize(nameLen + 1);
-		system->GetStringTrackedDeviceProperty(device, vr::Prop_RenderModelName_String,
-		                                       mTempStrBuffer.data(), mTempStrBuffer.capacity());
-
-		// Load model
-		vr::RenderModel_t* modelPtr;
-		vr::EVRRenderModelError error;
-		while (true) {
-			error = vr::VRRenderModels()->LoadRenderModel_Async(mTempStrBuffer.data(), &modelPtr);
-			if (error != vr::VRRenderModelError_Loading) {
-				break;
-			}
-			SDL_Delay(1);
-		}
-
-
-		
-		//vr::TrackedDevice
-
-		//SetupRenderModelForTrackedDevice(unTrackedDevice);
-	}
-	
-
 	mSystemPtr = system;
 	return true;
 }
@@ -174,19 +180,22 @@ void VR::update() noexcept
 		return;
 	}
 
-	// Update head position
-	mat4 headMatrix = sfz::identityMatrix4<float>();
+	// Retrieve positions of all currently tracked devices
+	bool deviceActive[vr::k_unMaxTrackedDeviceCount];
+	vr::ETrackedDeviceClass deviceClass[vr::k_unMaxTrackedDeviceCount];
+	vr::TrackedDevicePose_t devicePoses[vr::k_unMaxTrackedDeviceCount];
 	{
-		vr::TrackedDevicePose_t trackedDevicePoses[vr::k_unMaxTrackedDeviceCount];
-		char deviceChar[vr::k_unMaxTrackedDeviceCount] ={};
+		vr::VRCompositor()->WaitGetPoses(devicePoses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
+		for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+			deviceActive[i] = devicePoses[i].bPoseIsValid;
+			deviceClass[i] = system->GetTrackedDeviceClass(i);
+		}
+	}
 
-		vr::VRCompositor()->WaitGetPoses(trackedDevicePoses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
-
-		for (int device = 0; device < 16; device++) {
-			if (!trackedDevicePoses[device].bPoseIsValid) continue;
-			if (system->GetTrackedDeviceClass(device) != vr::TrackedDeviceClass_HMD) continue;
-
-			mHMD.headMatrix = inverse(convertSteamVRMatrix(trackedDevicePoses[device].mDeviceToAbsoluteTracking));
+	// Update head matrix
+	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+		if (deviceActive[i] && deviceClass[i] == vr::TrackedDeviceClass_HMD) {
+			mHMD.headMatrix = inverse(convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking));
 			break;
 		}
 	}
@@ -196,6 +205,39 @@ void VR::update() noexcept
 	mHMD.eyeMatrix[RIGHT_EYE] = getEyeMatrix(system, RIGHT_EYE);
 	mHMD.projMatrix[LEFT_EYE] = getProjectionMatrix(system, LEFT_EYE, mHMD.near, 1000.0f);
 	mHMD.projMatrix[RIGHT_EYE] = getProjectionMatrix(system, RIGHT_EYE, mHMD.near, 1000.0f);
+
+	
+	int controllerCount = 0;
+	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+		if (!deviceActive[i] || deviceClass[i] != vr::TrackedDeviceClass_Controller) continue;
+
+		// Retrieve name of device
+		uint32_t nameLen = system->GetStringTrackedDeviceProperty(i, vr::Prop_RenderModelName_String, NULL, 0);
+		mTempStrBuffer.ensureCapacity(nameLen + 1);
+		mTempStrBuffer.setSize(nameLen + 1);
+		system->GetStringTrackedDeviceProperty(i, vr::Prop_RenderModelName_String,
+			mTempStrBuffer.data(), mTempStrBuffer.capacity());
+
+		// Load model
+		vr::RenderModel_t* modelPtr;
+		vr::EVRRenderModelError error;
+		while (true) {
+			error = vr::VRRenderModels()->LoadRenderModel_Async(mTempStrBuffer.data(), &modelPtr);
+			if (error != vr::VRRenderModelError_Loading) {
+				break;
+			}
+			SDL_Delay(1);
+		}
+
+		mControllerModels[controllerCount] = modelFromRenderModel(modelPtr);
+		// TODO: Free modelPtr (with FreeRenderModel())?
+
+		//mControllers[controllerCount].transform = inverse(convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking));
+		mControllers[controllerCount].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
+
+		controllerCount += 1;
+		if (controllerCount == 2) break;
+	}
 }
 
 void VR::submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
