@@ -160,6 +160,13 @@ bool VR::initialize() noexcept
 		return false;
 	}
 
+	// Get recommended render target size
+	{
+		uint32_t w = 0, h = 0;
+		system->GetRecommendedRenderTargetSize(&w, &h);
+		mRecommendedRenderTargetSize = vec2i(int32_t(w), int32_t(h));
+	}
+
 	mSystemPtr = system;
 	return true;
 }
@@ -240,8 +247,8 @@ void VR::update() noexcept
 	}
 }
 
-void VR::submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
-                       vec2 uvMax, bool gammaCorrect) noexcept
+void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
+                vec2 uvMax, bool gammaCorrect) noexcept
 {
 	vr::IVRSystem* system = vrCast(mSystemPtr);
 	if (system == nullptr) {
@@ -279,34 +286,12 @@ void VR::submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEy
 	rightEyeTexBounds.vMax = 1.0f;
 	vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexWrapper, &rightEyeTexBounds);
 	
-	//$ HACKHACK. From gpuview profiling, it looks like there is a bug where two renders and a present
-	// happen right before and after the vsync causing all kinds of jittering issues. This glFinish()
-	// appears to clear that up. Temporary fix while I try to get nvidia to investigate this problem.
-	// 1/29/2014 mikesart
-	glFinish();
-
-	SDL_GL_SwapWindow(static_cast<SDL_Window*>(sdlWindowPtr));
-
-	// We want to make sure the glFinish waits for the entire present to complete, not just the submission
-	// of the command. So, we do a clear here right here so the glFinish will wait fully for the swap.
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	// Flush and wait for swap.
 	glFlush();
 	glFinish();
-}
 
-vec2i VR::getRecommendedRenderTargetSize() noexcept
-{
-	vr::IVRSystem* system = vrCast(mSystemPtr);
-	if (system == nullptr) {
-		sfz::printErrorMessage("VR: OpenVR not initialized.");
-		return vec2i(-1);
-	}
-	uint32_t w = 0, h = 0;
-	system->GetRecommendedRenderTargetSize(&w, &h);
-	return vec2i(int32_t(w), int32_t(h));
+	// Make compositor begin work immediately (don't wait for WaitGetPoses())
+	vr::VRCompositor()->PostPresentHandoff();
 }
 
 // VR: Private constructors & destructors

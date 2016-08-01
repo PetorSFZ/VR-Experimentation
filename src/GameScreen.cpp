@@ -11,6 +11,8 @@ namespace vre {
 // ------------------------------------------------------------------------------------------------
 
 GameScreen::GameScreen() noexcept
+:
+	mStats(128)
 {
 	sfz::StackString128 modelsPath;
 	modelsPath.printf("%sassets/models/", sfz::basePath());
@@ -106,6 +108,11 @@ GameScreen::GameScreen() noexcept
 
 UpdateOp GameScreen::update(UpdateState& state)
 {
+	mStats.addSample(state.delta);
+	static int printCount = 0;
+	if (printCount == 0) printf("%s\n", mStats.toString());
+	printCount = (printCount + 1) % 20;
+
 	// Handle input
 	for (const SDL_Event& event : state.events) {
 		switch (event.type) {
@@ -118,6 +125,7 @@ UpdateOp GameScreen::update(UpdateState& state)
 		}
 	}
 
+	// Update vr instance
 	sfz::VR::instance().update();
 
 	return sfz::SCREEN_NO_OP;
@@ -127,13 +135,12 @@ void GameScreen::render(UpdateState& state)
 {
 	using namespace sfz;
 
-	// Grab vr instance and update it
+	// Grab vr instance
 	VR& vr = VR::instance();
-	vr.update();
 	const HMD& hmd = vr.hmd();
 
 	// Check if framebuffers need to be resized
-	vec2i fbRes = vr.getRecommendedRenderTargetSize();
+	vec2i fbRes = vr.recommendedRenderTargetSize();
 	if (mFinalFB[LEFT_EYE].dimensions() != fbRes) {
 		FramebufferBuilder builder = FramebufferBuilder(fbRes)
 		                            .addDepthTexture(FBDepthFormat::F32)
@@ -154,8 +161,13 @@ void GameScreen::render(UpdateState& state)
 	{
 		mSimpleShader.useProgram();
 
+		glEnable(GL_CULL_FACE);
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LESS);
+
 		for (uint32_t eye : VR_EYES) {
-			const mat4 viewMatrix = hmd.eyeMatrix[eye] * hmd.headMatrix * hmd.originMatrix;
+			const mat4 viewMatrix = hmd.eyeMatrix[eye] * hmd.headMatrix;
 			const mat4 modelMatrix = identityMatrix4<float>();
 
 			gl::setUniform(mSimpleShader, "uProjMatrix", hmd.projMatrix[eye]);
@@ -200,8 +212,15 @@ void GameScreen::render(UpdateState& state)
 		mQuad.render();
 	}
 
-	// Submit framebuffers to Vive and swap
-	vr.submitAndSwap(state.window.ptr(), mFinalFB[LEFT_EYE].texture(0), mFinalFB[RIGHT_EYE].texture(0));
+	// Submit framebuffers to Vive
+	vr.submit(state.window.ptr(), mFinalFB[LEFT_EYE].texture(0), mFinalFB[RIGHT_EYE].texture(0));
+
+	// Write every 4th frame to the window
+	static int everyOther = 0;
+	if (everyOther == 0) {
+		SDL_GL_SwapWindow(state.window.ptr());
+	}
+	everyOther = (everyOther + 1) % 4;
 }
 
 void GameScreen::onQuit()

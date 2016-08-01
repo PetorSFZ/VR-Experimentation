@@ -23,12 +23,10 @@ constexpr uint32_t VR_EYES[] = { LEFT_EYE, RIGHT_EYE };
 
 struct HMD final {
 	float near = 0.01f;
-	mat4 originMatrix = identityMatrix4<float>();
 	mat4 headMatrix = identityMatrix4<float>();
 	mat4 eyeMatrix[2] = { identityMatrix4<float>(), identityMatrix4<float>() };
 	mat4 projMatrix[2] = { identityMatrix4<float>(), identityMatrix4<float>() };
-	inline vec3 originPos() const noexcept { return translation(originMatrix); }
-	inline vec3 headPos() const noexcept { return originPos() + translation(headMatrix); }
+	inline vec3 headPos() const noexcept { return translation(headMatrix); }
 };
 
 // Controllers
@@ -36,6 +34,7 @@ struct HMD final {
 
 struct Controller final {
 	mat4 transform;
+	inline vec3 pos() const noexcept { return translation(transform); }
 };
 
 // VR manager class
@@ -68,19 +67,18 @@ public:
 	/// Updates this VR manager, should be called once in the beginning of a frame before rendering
 	void update() noexcept;
 
-	/// Submits the textures for each eye to OpenVR runtime, then calls SDL_GL_SwapWindow().
+	/// Submits the textures for each eye to OpenVR runtime
 	/// The gammaCorrect flag tells whether the submitted textures are gamma corrected or not.
 	/// The uvMax parameter tells how large part of the texture should be used ((1,1) is all of it),
 	/// useful in order to implement dynamic resolution.
-	void submitAndSwap(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
-	                   vec2 uvMax = vec2(1.0), bool gammaCorrect = false) noexcept;
-	
-	vec2i getRecommendedRenderTargetSize() noexcept;
+	void submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
+	            vec2 uvMax = vec2(1.0), bool gammaCorrect = false) noexcept;
 
 	// Getters
 	// --------------------------------------------------------------------------------------------
 
 	inline bool isInitialized() const noexcept { return mSystemPtr != nullptr; }
+	inline vec2i recommendedRenderTargetSize() const noexcept { return mRecommendedRenderTargetSize; }
 	inline const HMD& hmd() const noexcept { return mHMD; }
 	inline HMD& hmd() noexcept { return mHMD; }
 
@@ -103,6 +101,7 @@ private:
 	// --------------------------------------------------------------------------------------------
 
 	void* mSystemPtr = nullptr;
+	vec2i mRecommendedRenderTargetSize = vec2i(0, 0);
 	HMD mHMD;
 	Controller mControllers[2];
 	Model mControllerModels[2];

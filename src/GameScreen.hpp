@@ -3,13 +3,12 @@
 #include "sfz/Math.hpp"
 #include "sfz/Screens.hpp"
 #include "sfz/SDL.hpp"
-
 #include "sfz/geometry/ViewFrustum.hpp"
-
 #include "sfz/gl/Program.hpp"
 #include "sfz/gl/Framebuffer.hpp"
 #include "sfz/gl/FullscreenQuad.hpp"
 #include "sfz/gl/Model.hpp"
+#include "sfz/util/FrametimeStats.hpp"
 
 #include "VR.hpp"
 
@@ -50,6 +49,7 @@ private:
 	// Private members
 	// --------------------------------------------------------------------------------------------
 
+	sfz::FrametimeStats mStats;
 	Framebuffer mFinalFB[2];
 	Program mSimpleShader, mScalingShader;
 	FullscreenQuad mQuad;
