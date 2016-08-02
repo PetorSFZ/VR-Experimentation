@@ -82,8 +82,8 @@ public:
 	inline const HMD& hmd() const noexcept { return mHMD; }
 	inline HMD& hmd() noexcept { return mHMD; }
 
-	inline const Controller& controller(uint32_t eye) const noexcept { return mControllers[eye]; }
-	inline const Model& controllerModel(uint32_t eye) const noexcept { return mControllerModels[eye]; }
+	inline const Controller& controller(uint32_t hand) const noexcept { return mControllers[hand]; }
+	inline const Model& controllerModel(uint32_t hand) const noexcept { return mControllerModels[hand]; }
 
 private:
 	// Private constructors & destructors

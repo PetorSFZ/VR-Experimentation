@@ -175,10 +175,17 @@ void GameScreen::render(UpdateState& state)
 			gl::setUniform(mSimpleShader, "uModelMatrix", modelMatrix);
 			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * modelMatrix))); // inverse(tranpose(modelViewMatrix))*/
 			
+			gl::setUniform(mSimpleShader, "uHasTexture", 0);
+
 			mFinalFB[eye].bindViewportClearColorDepth();
 			
 			mSnakeModel.draw();
 			
+			gl::setUniform(mSimpleShader, "uHasTexture", 1);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, vr.controllerModel(0).glColorTexture);
+			gl::setUniform(mSimpleShader, "uTexture", 0);
+
 			mat4 controllerTransform0 = vr.controller(0).transform;
 			gl::setUniform(mSimpleShader, "uModelMatrix", controllerTransform0);
 			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * controllerTransform0))); // inverse(tranpose(modelViewMatrix))*/

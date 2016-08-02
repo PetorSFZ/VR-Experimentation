@@ -56,30 +56,58 @@ static mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float nea
 	return convertSteamVRMatrix(mat);
 }
 
-static Model modelFromRenderModel(vr::RenderModel_t* renderModelPtr) noexcept
+static Model loadVRModel(const char* deviceName) noexcept
 {
 	using sfz::gl::Vertex;
+
+	// Load model
+	vr::RenderModel_t* modelPtr = nullptr;
+	vr::EVRRenderModelError error = vr::VRRenderModelError_None;
+	while (true) {
+		error = vr::VRRenderModels()->LoadRenderModel_Async(deviceName, &modelPtr);
+		if (error != vr::VRRenderModelError_Loading) {
+			break;
+		}
+		SDL_Delay(1);
+	}
+	if (error != vr::VRRenderModelError_None) {
+		printErrorMessage("VR: Failed to load model: %s", deviceName);
+		return Model();
+	}
+
+	// Load texture
+	vr::RenderModel_TextureMap_t* texturePtr = nullptr;
+	while (true) {
+		error = vr::VRRenderModels()->LoadTexture_Async(modelPtr->diffuseTextureId, &texturePtr);
+		if (error != vr::VRRenderModelError_Loading) {
+			break;
+		}
+		SDL_Delay(1);
+	}
+	if (error != vr::VRRenderModelError_None) {
+		printErrorMessage("VR: Failed to load texture: %s", deviceName);
+		vr::VRRenderModels()->FreeRenderModel(modelPtr);
+		return Model();
+	}
+
+
 	Model tmp;
-	
+
 	// Copy over vertices
-	tmp.vertices = DynArray<Vertex>(renderModelPtr->unVertexCount, renderModelPtr->unVertexCount);
+	tmp.vertices = DynArray<Vertex>(modelPtr->unVertexCount, modelPtr->unVertexCount);
 	for (size_t i = 0; i < tmp.vertices.size(); i++) {
 		sfz::gl::Vertex vertTmp;
-		vertTmp.pos = vec3(renderModelPtr->rVertexData[i].vPosition.v);
-		vertTmp.normal = vec3(renderModelPtr->rVertexData[i].vNormal.v);
-		vertTmp.uv = vec2(renderModelPtr->rVertexData[i].rfTextureCoord);
+		vertTmp.pos = vec3(modelPtr->rVertexData[i].vPosition.v);
+		vertTmp.normal = vec3(modelPtr->rVertexData[i].vNormal.v);
+		vertTmp.uv = vec2(modelPtr->rVertexData[i].rfTextureCoord);
 		tmp.vertices[i] = vertTmp;
 	}
 
 	// Copy over indices
-	tmp.indices = DynArray<uint32_t>(renderModelPtr->unTriangleCount * 3, 0, renderModelPtr->unTriangleCount * 3);
+	tmp.indices = DynArray<uint32_t>(modelPtr->unTriangleCount * 3, 0, modelPtr->unTriangleCount * 3);
 	for (size_t i = 0; i < tmp.indices.size(); i++) {
-		tmp.indices[i] = renderModelPtr->rIndexData[i];
+		tmp.indices[i] = modelPtr->rIndexData[i];
 	}
-
-	// TODO: Copy texture
-	tmp.glColorTexture = renderModelPtr->diffuseTextureId;
-
 
 	// Create Vertex Array object
 	glGenVertexArrays(1, &tmp.glVAO);
@@ -103,11 +131,32 @@ static Model modelFromRenderModel(vr::RenderModel_t* renderModelPtr) noexcept
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tmp.glIndexBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * tmp.indices.size(), tmp.indices.data(), GL_STATIC_DRAW);
 
+	// Create OpenGL texture
+	glGenTextures(1, &tmp.glColorTexture);
+	glBindTexture(GL_TEXTURE_2D, tmp.glColorTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texturePtr->unWidth, texturePtr->unHeight, 0, GL_RGBA,
+	             GL_UNSIGNED_BYTE, texturePtr->rubTextureMapData);
+
+	// Set filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	float largestAnisotropy;
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largestAnisotropy);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largestAnisotropy);
+
+	// Generate mipmaps
+	glGenerateMipmap(GL_TEXTURE_2D);
+
 	// Cleanup
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
+	glBindTexture(GL_TEXTURE_2D, 0);
+	vr::VRRenderModels()->FreeRenderModel(modelPtr);
+	vr::VRRenderModels()->FreeTexture(texturePtr);
+	
 	return std::move(tmp);
 }
 
@@ -213,7 +262,6 @@ void VR::update() noexcept
 	mHMD.projMatrix[LEFT_EYE] = getProjectionMatrix(system, LEFT_EYE, mHMD.near, 1000.0f);
 	mHMD.projMatrix[RIGHT_EYE] = getProjectionMatrix(system, RIGHT_EYE, mHMD.near, 1000.0f);
 
-	
 	int controllerCount = 0;
 	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
 		if (!deviceActive[i] || deviceClass[i] != vr::TrackedDeviceClass_Controller) continue;
@@ -223,23 +271,13 @@ void VR::update() noexcept
 		mTempStrBuffer.ensureCapacity(nameLen + 1);
 		mTempStrBuffer.setSize(nameLen + 1);
 		system->GetStringTrackedDeviceProperty(i, vr::Prop_RenderModelName_String,
-			mTempStrBuffer.data(), mTempStrBuffer.capacity());
+		                                       mTempStrBuffer.data(), mTempStrBuffer.capacity());
 
+
+		
 		// Load model
-		vr::RenderModel_t* modelPtr;
-		vr::EVRRenderModelError error;
-		while (true) {
-			error = vr::VRRenderModels()->LoadRenderModel_Async(mTempStrBuffer.data(), &modelPtr);
-			if (error != vr::VRRenderModelError_Loading) {
-				break;
-			}
-			SDL_Delay(1);
-		}
+		mControllerModels[controllerCount] = loadVRModel(mTempStrBuffer.data());
 
-		mControllerModels[controllerCount] = modelFromRenderModel(modelPtr);
-		// TODO: Free modelPtr (with FreeRenderModel())?
-
-		//mControllers[controllerCount].transform = inverse(convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking));
 		mControllers[controllerCount].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
 
 		controllerCount += 1;
