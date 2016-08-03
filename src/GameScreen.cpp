@@ -181,20 +181,20 @@ void GameScreen::render(UpdateState& state)
 			
 			mSnakeModel.draw();
 			
+			// Draw tracked devices
 			gl::setUniform(mSimpleShader, "uHasTexture", 1);
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, vr.controllerModel(0).glColorTexture);
 			gl::setUniform(mSimpleShader, "uTexture", 0);
+			for (const auto& device : vr.trackedDevices()) {
+				
+				if (device.type == TrackedDeviceType::HMD) continue;
 
-			mat4 controllerTransform0 = vr.controller(0).transform;
-			gl::setUniform(mSimpleShader, "uModelMatrix", controllerTransform0);
-			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * controllerTransform0))); // inverse(tranpose(modelViewMatrix))*/
-			vr.controllerModel(0).draw();
+				glBindTexture(GL_TEXTURE_2D, device.model.glColorTexture);
+				gl::setUniform(mSimpleShader, "uModelMatrix", device.transform);
+				gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * device.transform))); // inverse(tranpose(modelViewMatrix))*/
 
-			mat4 controllerTransform1 = vr.controller(1).transform;
-			gl::setUniform(mSimpleShader, "uModelMatrix", controllerTransform1);
-			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * controllerTransform1))); // inverse(tranpose(modelViewMatrix))*/
-			vr.controllerModel(1).draw();
+				device.model.draw();
+			}
 		}
 	}
 

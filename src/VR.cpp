@@ -160,6 +160,47 @@ static Model loadVRModel(const char* deviceName) noexcept
 	return std::move(tmp);
 }
 
+static TrackedDevice initTrackedDevice(vr::IVRSystem* system, uint32_t deviceIndex,
+                                       vr::TrackedDevicePose_t& pose, bool& valid) noexcept
+{
+	static DynArray<char> tmpStrBuffer;
+
+	TrackedDevice tmp;
+
+	// Add device if it has valid type
+	vr::ETrackedDeviceClass deviceClass = system->GetTrackedDeviceClass(deviceIndex);
+	if (deviceClass == vr::TrackedDeviceClass_HMD) {
+		tmp.type = TrackedDeviceType::HMD;
+	} else if (deviceClass == vr::TrackedDeviceClass_Controller) {
+		tmp.type = TrackedDeviceType::CONTROLLER;
+	} else if (deviceClass == vr::TrackedDeviceClass_TrackingReference) {
+		tmp.type = TrackedDeviceType::TRACKING_REFERENCE;
+	} else {
+		valid = false;
+		return tmp;
+	}
+
+	// Set device id
+	tmp.deviceId = deviceIndex;
+
+	// Transform
+	tmp.transform = convertSteamVRMatrix(pose.mDeviceToAbsoluteTracking);
+
+	// Retrieve name of device
+	uint32_t nameLen = system->GetStringTrackedDeviceProperty(deviceIndex,
+	                               vr::Prop_RenderModelName_String,NULL, 0);
+	tmpStrBuffer.ensureCapacity(nameLen + 1);
+	tmpStrBuffer.setSize(nameLen + 1);
+	system->GetStringTrackedDeviceProperty(deviceIndex, vr::Prop_RenderModelName_String,
+	                                       tmpStrBuffer.data(), tmpStrBuffer.capacity());
+
+	// Load model
+	tmp.model = loadVRModel(tmpStrBuffer.data());
+
+	valid = true;
+	return std::move(tmp);
+}
+
 // VR: Singleton instance
 // ------------------------------------------------------------------------------------------------
 
@@ -209,11 +250,24 @@ bool VR::initialize() noexcept
 		return false;
 	}
 
-	// Get recommended render target size
+	// Load initial devices
 	{
-		uint32_t w = 0, h = 0;
-		system->GetRecommendedRenderTargetSize(&w, &h);
-		mRecommendedRenderTargetSize = vec2i(int32_t(w), int32_t(h));
+		// Get poses
+		vr::TrackedDevicePose_t devicePoses[vr::k_unMaxTrackedDeviceCount];
+		vr::VRCompositor()->WaitGetPoses(devicePoses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
+		
+		// Iterate through devices
+		for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+			
+			// Skip invalid poses
+			if (!devicePoses[i].bPoseIsValid) continue;
+			
+			bool valid = false;
+			TrackedDevice tmp = initTrackedDevice(system, i, devicePoses[i], valid);
+			if (!valid) continue;
+
+			mTrackedDevices.add(std::move(tmp));
+		}
 	}
 
 	mSystemPtr = system;
@@ -226,6 +280,19 @@ void VR::deinitialize() noexcept
 		vr::VR_Shutdown();
 		this->mSystemPtr = nullptr;
 	}
+}
+
+vec2i VR::recommendedRenderTargetSize() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return vec2i(0.0f);
+	}
+
+	uint32_t w = 0, h = 0;
+	system->GetRecommendedRenderTargetSize(&w, &h);
+	return vec2i(int32_t(w), int32_t(h));
 }
 
 void VR::update() noexcept
@@ -248,6 +315,61 @@ void VR::update() noexcept
 		}
 	}
 
+	// Process SteamVR events
+	vr::VREvent_t event;
+	while (system->PollNextEvent(&event, sizeof(event))) {
+		switch (event.eventType) {
+		case vr::VREvent_TrackedDeviceActivated:
+			{
+				bool valid = false;
+				TrackedDevice tmp = initTrackedDevice(system, event.trackedDeviceIndex,
+				                                      devicePoses[event.trackedDeviceIndex], valid);
+				if (!valid) continue;
+				mTrackedDevices.add(std::move(tmp));
+			}
+			break;
+		case vr::VREvent_TrackedDeviceDeactivated:
+			for (uint32_t i = 0; i < mTrackedDevices.size(); i++) {
+				if (mTrackedDevices[i].deviceId == event.trackedDeviceIndex) {
+					mTrackedDevices.remove(i);
+					break;
+				}
+			}
+			break;
+		case vr::VREvent_TrackedDeviceUpdated:
+			// TODO: Do what?
+			break;
+
+		default:
+			// Do nothing
+			break;
+		}
+	}
+
+	// Update transforms of all tracked devices
+	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+		if (!deviceActive[i]) continue;
+
+		// Find index in internal array
+		uint32_t arrayIndex = uint32_t(~0);
+		for (uint32_t j = 0; j < mTrackedDevices.size(); j++) {
+			if (mTrackedDevices[j].deviceId == i) {
+				arrayIndex = j;
+				break;
+			}
+		}
+
+		if (arrayIndex == uint32_t(~0)) {
+			printErrorMessage("VR: Can't update tracked device because it does not exist. This should not happen.");
+			sfz_assert_debug(false);
+			// TODO: Device does not exist, need to create it
+			continue;
+		}
+
+		// Update device location
+		mTrackedDevices[arrayIndex].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
+	}
+
 	// Update head matrix
 	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
 		if (deviceActive[i] && deviceClass[i] == vr::TrackedDeviceClass_HMD) {
@@ -261,28 +383,6 @@ void VR::update() noexcept
 	mHMD.eyeMatrix[RIGHT_EYE] = getEyeMatrix(system, RIGHT_EYE);
 	mHMD.projMatrix[LEFT_EYE] = getProjectionMatrix(system, LEFT_EYE, mHMD.near, 1000.0f);
 	mHMD.projMatrix[RIGHT_EYE] = getProjectionMatrix(system, RIGHT_EYE, mHMD.near, 1000.0f);
-
-	int controllerCount = 0;
-	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-		if (!deviceActive[i] || deviceClass[i] != vr::TrackedDeviceClass_Controller) continue;
-
-		// Retrieve name of device
-		uint32_t nameLen = system->GetStringTrackedDeviceProperty(i, vr::Prop_RenderModelName_String, NULL, 0);
-		mTempStrBuffer.ensureCapacity(nameLen + 1);
-		mTempStrBuffer.setSize(nameLen + 1);
-		system->GetStringTrackedDeviceProperty(i, vr::Prop_RenderModelName_String,
-		                                       mTempStrBuffer.data(), mTempStrBuffer.capacity());
-
-
-		
-		// Load model
-		mControllerModels[controllerCount] = loadVRModel(mTempStrBuffer.data());
-
-		mControllers[controllerCount].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
-
-		controllerCount += 1;
-		if (controllerCount == 2) break;
-	}
 }
 
 void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
@@ -330,6 +430,39 @@ void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
 
 	// Make compositor begin work immediately (don't wait for WaitGetPoses())
 	vr::VRCompositor()->PostPresentHandoff();
+}
+
+// VR: Getters
+// ------------------------------------------------------------------------------------------------
+
+const TrackedDevice* VR::leftController() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return nullptr;
+	}
+
+	uint32_t id = system->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
+	for (const auto& device : mTrackedDevices) {
+		if (device.deviceId == id) return &device;
+	}
+	return nullptr;
+}
+
+const TrackedDevice* VR::rightController() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return nullptr;
+	}
+
+	uint32_t id = system->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
+	for (const auto& device : mTrackedDevices) {
+		if (device.deviceId == id) return &device;
+	}
+	return nullptr;
 }
 
 // VR: Private constructors & destructors

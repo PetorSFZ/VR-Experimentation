@@ -29,12 +29,31 @@ struct HMD final {
 	inline vec3 headPos() const noexcept { return translation(headMatrix); }
 };
 
-// Controllers
+// Tracked device
 // ------------------------------------------------------------------------------------------------
 
-struct Controller final {
-	mat4 transform;
+enum class TrackedDeviceType {
+	HMD,
+	CONTROLLER,
+	TRACKING_REFERENCE
+};
+
+struct TrackedDevice final {
+	// Identifying information
+	TrackedDeviceType type;
+	uint32_t deviceId;
+
+	// Position and rotation relative to room origin
+	mat4 transform = identityMatrix4<float>();
+	// TODO: Predicted transform
+
+	// Model and texture
+	Model model;
+
+	// Helper functions
 	inline vec3 pos() const noexcept { return translation(transform); }
+	// TODO: dir()
+	// TODO: up()
 };
 
 // VR manager class
@@ -64,6 +83,8 @@ public:
 	/// Deinitializes OpenVR and this whole VR manager
 	void deinitialize() noexcept;
 
+	vec2i recommendedRenderTargetSize() const noexcept;
+
 	/// Updates this VR manager, should be called once in the beginning of a frame before rendering
 	void update() noexcept;
 
@@ -77,13 +98,13 @@ public:
 	// Getters
 	// --------------------------------------------------------------------------------------------
 
-	inline bool isInitialized() const noexcept { return mSystemPtr != nullptr; }
-	inline vec2i recommendedRenderTargetSize() const noexcept { return mRecommendedRenderTargetSize; }
+	inline bool isInitialized() const noexcept { return mSystemPtr != nullptr; };
 	inline const HMD& hmd() const noexcept { return mHMD; }
 	inline HMD& hmd() noexcept { return mHMD; }
 
-	inline const Controller& controller(uint32_t hand) const noexcept { return mControllers[hand]; }
-	inline const Model& controllerModel(uint32_t hand) const noexcept { return mControllerModels[hand]; }
+	inline const DynArray<TrackedDevice>& trackedDevices() const noexcept { return mTrackedDevices; }
+	inline const TrackedDevice* leftController() const noexcept;
+	inline const TrackedDevice* rightController() const noexcept;
 
 private:
 	// Private constructors & destructors
@@ -101,10 +122,9 @@ private:
 	// --------------------------------------------------------------------------------------------
 
 	void* mSystemPtr = nullptr;
-	vec2i mRecommendedRenderTargetSize = vec2i(0, 0);
+	DynArray<TrackedDevice> mTrackedDevices;
 	HMD mHMD;
-	Controller mControllers[2];
-	Model mControllerModels[2];
+
 	mutable DynArray<char> mTempStrBuffer;
 };
 
