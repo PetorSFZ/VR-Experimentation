@@ -18,17 +18,6 @@ constexpr uint32_t LEFT_EYE = 0;
 constexpr uint32_t RIGHT_EYE = 1;
 constexpr uint32_t VR_EYES[] = { LEFT_EYE, RIGHT_EYE };
 
-// Head Mounted Device
-// ------------------------------------------------------------------------------------------------
-
-struct HMD final {
-	float near = 0.01f;
-	mat4 headMatrix = identityMatrix4<float>();
-	mat4 eyeMatrix[2] = { identityMatrix4<float>(), identityMatrix4<float>() };
-	mat4 projMatrix[2] = { identityMatrix4<float>(), identityMatrix4<float>() };
-	inline vec3 headPos() const noexcept { return translation(headMatrix); }
-};
-
 // Tracked device
 // ------------------------------------------------------------------------------------------------
 
@@ -83,8 +72,6 @@ public:
 	/// Deinitializes OpenVR and this whole VR manager
 	void deinitialize() noexcept;
 
-	vec2i recommendedRenderTargetSize() const noexcept;
-
 	/// Updates this VR manager, should be called once in the beginning of a frame before rendering
 	void update() noexcept;
 
@@ -99,12 +86,15 @@ public:
 	// --------------------------------------------------------------------------------------------
 
 	inline bool isInitialized() const noexcept { return mSystemPtr != nullptr; };
-	inline const HMD& hmd() const noexcept { return mHMD; }
-	inline HMD& hmd() noexcept { return mHMD; }
-
+	vec2i recommendedRenderTargetSize() const noexcept;
+	mat4 headMatrix() const noexcept;
+	mat4 eyeMatrix(uint32_t eye) const noexcept;
+	mat4 projMatrix(uint32_t eye, float near = 0.01f) const noexcept;
 	inline const DynArray<TrackedDevice>& trackedDevices() const noexcept { return mTrackedDevices; }
-	inline const TrackedDevice* leftController() const noexcept;
-	inline const TrackedDevice* rightController() const noexcept;
+
+	const TrackedDevice* hmd() const noexcept;
+	const TrackedDevice* leftController() const noexcept;
+	const TrackedDevice* rightController() const noexcept;
 
 private:
 	// Private constructors & destructors
@@ -123,8 +113,6 @@ private:
 
 	void* mSystemPtr = nullptr;
 	DynArray<TrackedDevice> mTrackedDevices;
-	HMD mHMD;
-
 	mutable DynArray<char> mTempStrBuffer;
 };
 

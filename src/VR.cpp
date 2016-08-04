@@ -44,18 +44,6 @@ static mat4 convertSteamVRMatrix(const vr::HmdMatrix44_t& matrix) noexcept
 	});
 }
 
-static mat4 getEyeMatrix(vr::IVRSystem* vrSystem, uint32_t eye) noexcept
-{
-	vr::HmdMatrix34_t mat = vrSystem->GetEyeToHeadTransform(vr::EVREye(eye));
-	return inverse(convertSteamVRMatrix(mat));
-}
-
-static mat4 getProjectionMatrix(vr::IVRSystem* vrSystem, uint32_t eye, float near, float far) noexcept
-{
-	vr::HmdMatrix44_t mat = vrSystem->GetProjectionMatrix(vr::EVREye(eye), near, far, vr::API_OpenGL);
-	return convertSteamVRMatrix(mat);
-}
-
 static Model loadVRModel(const char* deviceName) noexcept
 {
 	using sfz::gl::Vertex;
@@ -282,19 +270,6 @@ void VR::deinitialize() noexcept
 	}
 }
 
-vec2i VR::recommendedRenderTargetSize() const noexcept
-{
-	vr::IVRSystem* system = vrCast(mSystemPtr);
-	if (system == nullptr) {
-		sfz::printErrorMessage("VR: OpenVR not initialized.");
-		return vec2i(0.0f);
-	}
-
-	uint32_t w = 0, h = 0;
-	system->GetRecommendedRenderTargetSize(&w, &h);
-	return vec2i(int32_t(w), int32_t(h));
-}
-
 void VR::update() noexcept
 {
 	vr::IVRSystem* system = vrCast(mSystemPtr);
@@ -369,20 +344,6 @@ void VR::update() noexcept
 		// Update device location
 		mTrackedDevices[arrayIndex].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
 	}
-
-	// Update head matrix
-	for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-		if (deviceActive[i] && deviceClass[i] == vr::TrackedDeviceClass_HMD) {
-			mHMD.headMatrix = inverse(convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking));
-			break;
-		}
-	}
-
-	// Update eye and projection matrices
-	mHMD.eyeMatrix[LEFT_EYE] = getEyeMatrix(system, LEFT_EYE);
-	mHMD.eyeMatrix[RIGHT_EYE] = getEyeMatrix(system, RIGHT_EYE);
-	mHMD.projMatrix[LEFT_EYE] = getProjectionMatrix(system, LEFT_EYE, mHMD.near, 1000.0f);
-	mHMD.projMatrix[RIGHT_EYE] = getProjectionMatrix(system, RIGHT_EYE, mHMD.near, 1000.0f);
 }
 
 void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
@@ -434,6 +395,76 @@ void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,
 
 // VR: Getters
 // ------------------------------------------------------------------------------------------------
+
+vec2i VR::recommendedRenderTargetSize() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return vec2i(0.0f);
+	}
+
+	uint32_t w = 0, h = 0;
+	system->GetRecommendedRenderTargetSize(&w, &h);
+	return vec2i(int32_t(w), int32_t(h));
+}
+
+mat4 VR::headMatrix() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return identityMatrix4<float>();
+	}
+
+	for (const TrackedDevice& device : mTrackedDevices) {
+		if (device.type == TrackedDeviceType::HMD) {
+			return inverse(device.transform);
+		}
+	}
+	
+	return identityMatrix4<float>();
+}
+
+mat4 VR::eyeMatrix(uint32_t eye) const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return identityMatrix4<float>();
+	}
+
+	vr::HmdMatrix34_t mat = system->GetEyeToHeadTransform(vr::EVREye(eye));
+	return inverse(convertSteamVRMatrix(mat));
+}
+
+mat4 VR::projMatrix(uint32_t eye, float near) const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return identityMatrix4<float>();
+	}
+
+	vr::HmdMatrix44_t mat = system->GetProjectionMatrix(vr::EVREye(eye), near, 1000.0f, vr::API_OpenGL);
+	return convertSteamVRMatrix(mat);
+}
+
+const TrackedDevice* VR::hmd() const noexcept
+{
+	vr::IVRSystem* system = vrCast(mSystemPtr);
+	if (system == nullptr) {
+		sfz::printErrorMessage("VR: OpenVR not initialized.");
+		return nullptr;
+	}
+
+	for (const TrackedDevice& device : mTrackedDevices) {
+		if (device.type == TrackedDeviceType::HMD) {
+			return &device;
+		}
+	}
+	return nullptr;
+}
 
 const TrackedDevice* VR::leftController() const noexcept
 {

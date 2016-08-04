@@ -137,7 +137,6 @@ void GameScreen::render(UpdateState& state)
 
 	// Grab vr instance
 	VR& vr = VR::instance();
-	const HMD& hmd = vr.hmd();
 
 	// Check if framebuffers need to be resized
 	vec2i fbRes = vr.recommendedRenderTargetSize();
@@ -167,10 +166,10 @@ void GameScreen::render(UpdateState& state)
 		glDepthFunc(GL_LESS);
 
 		for (uint32_t eye : VR_EYES) {
-			const mat4 viewMatrix = hmd.eyeMatrix[eye] * hmd.headMatrix;
+			const mat4 viewMatrix = vr.eyeMatrix(eye) * vr.headMatrix();
 			const mat4 modelMatrix = identityMatrix4<float>();
 
-			gl::setUniform(mSimpleShader, "uProjMatrix", hmd.projMatrix[eye]);
+			gl::setUniform(mSimpleShader, "uProjMatrix", vr.projMatrix(eye));
 			gl::setUniform(mSimpleShader, "uViewMatrix", viewMatrix);
 			gl::setUniform(mSimpleShader, "uModelMatrix", modelMatrix);
 			gl::setUniform(mSimpleShader, "uNormalMatrix", inverse(transpose(viewMatrix * modelMatrix))); // inverse(tranpose(modelViewMatrix))*/
