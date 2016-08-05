@@ -6,10 +6,12 @@
 #include "sfz/gl/Model.hpp"
 #include "sfz/math/Matrix.hpp"
 #include "sfz/math/Vector.hpp"
+#include "sfz/sdl/ButtonState.hpp"
 
 namespace sfz {
 
 using gl::Model;
+using sdl::ButtonState;
 
 // Eye constants
 // ------------------------------------------------------------------------------------------------
@@ -43,6 +45,15 @@ struct TrackedDevice final {
 	inline vec3 pos() const noexcept { return translation(transform); }
 	// TODO: dir()
 	// TODO: up()
+};
+
+struct VRControllerState {
+	ButtonState menuButton = ButtonState::NOT_PRESSED;
+	ButtonState gripButton = ButtonState::NOT_PRESSED;
+	ButtonState touchpadButton = ButtonState::NOT_PRESSED;
+	vec2 touchpad = vec2(0.0f); // Range [-1.0, 1.0]
+	float trigger = 0.0f; // Range [0.0, 1.0]
+	// TODO: vec2 pos, vec2 dir, vec2 up
 };
 
 // VR manager class
@@ -95,6 +106,8 @@ public:
 	const TrackedDevice* hmd() const noexcept;
 	const TrackedDevice* leftController() const noexcept;
 	const TrackedDevice* rightController() const noexcept;
+	inline const VRControllerState& leftControllerState() const noexcept { return mControllerStates[LEFT_EYE]; }
+	inline const VRControllerState& rightControllerState() const noexcept { return mControllerStates[RIGHT_EYE]; }
 
 private:
 	// Private constructors & destructors
@@ -112,6 +125,7 @@ private:
 	// --------------------------------------------------------------------------------------------
 
 	void* mSystemPtr = nullptr;
+	VRControllerState mControllerStates[2];
 	DynArray<TrackedDevice> mTrackedDevices;
 	mutable DynArray<char> mTempStrBuffer;
 };

@@ -315,6 +315,19 @@ void VR::update() noexcept
 			// TODO: Do what?
 			break;
 
+		case vr::VREvent_ButtonPress:
+			// TODO
+			break;
+		case vr::VREvent_ButtonUnpress:
+			// TODO
+			break;
+		case vr::VREvent_ButtonTouch:
+			// TODO
+			break;
+		case vr::VREvent_ButtonUntouch:
+			// TODO
+			break;
+
 		default:
 			// Do nothing
 			break;
@@ -344,6 +357,10 @@ void VR::update() noexcept
 		// Update device location
 		mTrackedDevices[arrayIndex].transform = convertSteamVRMatrix(devicePoses[i].mDeviceToAbsoluteTracking);
 	}
+
+
+	// Update controller states
+
 }
 
 void VR::submit(void* sdlWindowPtr, uint32_t leftEyeTex, uint32_t rightEyeTex,

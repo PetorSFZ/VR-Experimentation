@@ -108,6 +108,8 @@ GameScreen::GameScreen() noexcept
 
 UpdateOp GameScreen::update(UpdateState& state)
 {
+	using namespace sfz;
+
 	mStats.addSample(state.delta);
 	static int printCount = 0;
 	if (printCount == 0) printf("%s\n", mStats.toString());
@@ -126,7 +128,41 @@ UpdateOp GameScreen::update(UpdateState& state)
 	}
 
 	// Update vr instance
+	VR& vr = VR::instance();
+	vr.update();
 	sfz::VR::instance().update();
+
+	const auto& rHand = vr.rightControllerState();
+
+	auto buttonStringifier = [](const ButtonState& state) -> const char* {
+		switch (state) {
+		case ButtonState::NOT_PRESSED: return "NOT_PRESSED";
+		case ButtonState::DOWN: return "DOWN";
+		case ButtonState::UP: return "UP";
+		case ButtonState::HELD: return "HELD";
+		}
+		return "INVALID";
+	};
+
+	if (rHand.menuButton != ButtonState::NOT_PRESSED) {
+		printf("Menu button: %s\n", buttonStringifier(rHand.menuButton));
+	}
+
+	if (rHand.gripButton != ButtonState::NOT_PRESSED) {
+		printf("Grip button: %s\n", buttonStringifier(rHand.gripButton));
+	}
+
+	if (rHand.touchpadButton != ButtonState::NOT_PRESSED) {
+		printf("Touchpad button: %s\n", buttonStringifier(rHand.touchpadButton));
+	}
+
+	if (rHand.touchpad != vec2(0.0f)) {
+		printf("Touchpad: %s\n", toString(rHand.touchpad).str);
+	}
+
+	if (rHand.trigger > 0.01f) {
+		printf("Trigger pressed: %f.2\n", rHand.trigger);
+	}
 
 	return sfz::SCREEN_NO_OP;
 }
